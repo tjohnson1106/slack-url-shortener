@@ -23,3 +23,59 @@ const createErrorDescription = (code, err) => {
     }
 
 }
+
+const createError = (sourceUrl, err) => {
+    const errorDescription = createErrorDescription(err.statusCode, JSON.parse(err.body))
+    return new Error('Cannot create short URL for "${sourceURL}":  ${errorDescription}')
+}
+
+const createShortUrlFactory = (apikey) => (options) => new Promise((resolve, reject) => {
+  const body = {
+    destination: options.url,
+    domain: options.domain ? { fullName: options.domain } : undefined,
+    slashtag: options.slashtag ? options.slashtag : undefined
+  }
+
+  const req = request({
+    url: 'https://api.rebrandly.com/v1/links',
+    method: 'POST',
+    headers: {
+      apikey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body, null, 2),
+    resolveWithFullResponse: true
+  })
+
+req
+    .then((response) => {
+        const result = JSON.parse(response.body)
+        resolve(result)
+    })
+    .catch((err) => {
+        resolve(createError(options.url, err.response))
+    })
+
+})
+
+const createShortUrlsFactory = (apikey) => (urls, domain, slashtags) => {
+  const structuredUrls = urls.map(url => ({url, domain, slashtag: undefined}))
+  if (Array.isArray(slashtags)) {
+    slashtags.forEach((slashtag, i) => (structuredUrls[i].slashtag = slashtag))
+  }
+
+  const requestsPromise = structuredUrls.map(createShortUrlFactory(apikey))
+  return Promise.all(requestsPromise)
+
+}
+
+
+module.export = createShortUrlsFactory
+
+
+
+
+
+
+
+
